@@ -39,9 +39,13 @@ function featureShell($cmd, $cwd) {
         } elseif (function_exists('shell_exec') && is_callable('shell_exec') && !isset($disable_functions['shell_exec'])) {
             $stdout = shell_exec($cmd);
         } elseif (function_exists('system') && is_callable('system') && !isset($disable_functions['system'])) {
-            $stdout = system($cmd);
+            ob_start();
+            system($cmd);
+            $stdout = ob_get_clean();
         } elseif (function_exists('passthru') && is_callable('passthru') && !isset($disable_functions['passthru'])) {
-            $stdout = passthru($cmd);
+            ob_start();
+            passthru($cmd);
+            $stdout = ob_get_clean();
         }
         if (is_string($stdout)) {
             $stdout = explode(PHP_EOL, $stdout);
