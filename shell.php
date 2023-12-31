@@ -468,6 +468,7 @@ if (!empty($input_feature)) {
             break;
         case 'eval':
             $code = $_POST['code'];
+            $code .= ';';
             $response = featureEval($code, $_POST["cwd"]);
             break;
     }
