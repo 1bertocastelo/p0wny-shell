@@ -638,7 +638,7 @@ if (!empty($input_feature)) {
                     featureUpload(command.match(/^\s*upload\s+([^\s]+)\s*$/)[1]);
                 } else if (/^\s*clear\s*$/.test(command)) {
                     eShellContent.innerHTML = '';
-                } else if (/^\s*eval\s+[\s\S]+\s*$/.test(command)) {
+                } else if (/^\s*eval\s+([\s\S]+)\s*$/.test(command)) {
                     makeRequest("?feature=eval", {code: command.match(/^\s*eval\s+([\s\S]+)\s*$/)[1], cwd: CWD}, function (response) {
                         if (response.hasOwnProperty('file')) {
                             featureDownload(response.name, response.file)
