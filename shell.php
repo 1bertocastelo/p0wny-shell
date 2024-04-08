@@ -410,6 +410,7 @@ function featureEval($code, $cwd) {
         } elseif (substr($code, 0, 2) === '<?') {
             $code = substr($code, 2);
         }
+        $code .= ';';
         try {
             error_clear_last();
             $return = eval($code);
